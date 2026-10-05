@@ -1,4 +1,5 @@
 import useReveal from '../hooks/useReveal.js'
+import { Link } from 'react-router'
 
 function ServiceCard({ service }) {
   const [cardRef, revealClass] = useReveal()
@@ -12,7 +13,7 @@ function ServiceCard({ service }) {
       </div>
       <h4>{service.title}</h4>
       <p>{service.description}</p>
-      <a className="link" href={`#${service.id}`}>Conocer más</a>
+      <Link className="link" to={`/servicios#${service.id}`}>Conocer más</Link>
     </article>
   )
 }

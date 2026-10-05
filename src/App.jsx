@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { BrowserRouter, Link, Route, Routes, useLocation } from 'react-router'
 import AdviceForm from './components/AdviceForm.jsx'
 import ProjectCard from './components/ProjectCard.jsx'
 import ProjectModal from './components/ProjectModal.jsx'
@@ -89,15 +90,94 @@ const processSteps = [
 ]
 
 function App() {
-  const [activeFilter, setActiveFilter] = useState('all')
-  const [selectedProject, setSelectedProject] = useState(null)
-  const [progressReady, setProgressReady] = useState(false)
-  const projectTriggerRef = useRef(null)
+  return (
+    <BrowserRouter basename={import.meta.env.BASE_URL}>
+      <AppLayout />
+    </BrowserRouter>
+  )
+}
+
+function AppLayout() {
+  const location = useLocation()
 
   useEffect(() => {
-    const timer = window.setTimeout(() => setProgressReady(true), 300)
-    return () => window.clearTimeout(timer)
-  }, [])
+    if (location.hash) {
+      window.requestAnimationFrame(() => {
+        document.getElementById(decodeURIComponent(location.hash.slice(1)))?.scrollIntoView()
+      })
+    } else {
+      window.scrollTo(0, 0)
+    }
+  }, [location.pathname, location.hash])
+
+  return (
+    <>
+      <SiteHeader />
+      <main>
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/servicios" element={<ServicesPage />} />
+          <Route path="/proyectos" element={<ProjectsPage />} />
+          <Route path="/proceso" element={<ProcessPage />} />
+          <Route path="/nosotros" element={<AboutPage />} />
+          <Route path="/contacto" element={<ContactPage />} />
+          <Route path="*" element={<NotFoundPage />} />
+        </Routes>
+      </main>
+      <SiteFooter />
+    </>
+  )
+}
+
+function HomePage() {
+  const [heroRef, heroReveal] = useReveal()
+
+  return (
+    <section id="inicio" className="hero">
+      <div className="container hero-grid">
+        <div ref={heroRef} className={`hero-content ${heroReveal}`}>
+          <h1 className="brand">GAM+</h1>
+          <h2 className="eyebrow">Convertimos ideas en marcas que conectan.</h2>
+          <p>Combinamos estrategia, diseño y comunicación para ayudar a emprendimientos y empresas a construir marcas relevantes y crecer con intención.</p>
+          <div className="hero-actions">
+            <Link className="btn outline" to="/servicios">Conoce nuestros servicios</Link>
+            <Link className="btn primary" to="/contacto#asesoramiento">Quiero asesoramiento</Link>
+          </div>
+        </div>
+        <div className="hero-visual" aria-hidden="true">
+          <img src="https://i.pinimg.com/1200x/00/9f/b2/009fb2f8fb2d0c1de658461d3dbc93b8.jpg" alt="" />
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function ServicesPage() {
+  return (
+    <section id="servicios" className="section">
+      <div className="container">
+        <h3>Servicios</h3>
+        <p className="lead">Soluciones creativas e integradas para tu marca.</p>
+        <div className="cards services-grid">
+          {services.map((service) => <ServiceCard key={service.id} service={service} />)}
+        </div>
+        <div className="service-details" aria-label="Detalle de servicios">
+          {services.map((service) => (
+            <article id={service.id} key={service.id}>
+              <h4>{service.title}</h4>
+              <p>{service.detail}</p>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function ProjectsPage() {
+  const [activeFilter, setActiveFilter] = useState('all')
+  const [selectedProject, setSelectedProject] = useState(null)
+  const projectTriggerRef = useRef(null)
 
   useEffect(() => {
     if (!selectedProject) return undefined
@@ -124,50 +204,9 @@ function App() {
   const visibleProjects = activeFilter === 'all'
     ? projects
     : projects.filter((project) => project.category === activeFilter)
-  const [heroRef, heroReveal] = useReveal()
-  const [clientCtaRef, clientCtaReveal] = useReveal()
-  const [contactRef, contactReveal] = useReveal()
-
   return (
     <>
-      <SiteHeader />
-      <main>
-        <section id="inicio" className="hero">
-          <div className="container hero-grid">
-            <div ref={heroRef} className={`hero-content ${heroReveal}`}>
-              <h1 className="brand">GAM+</h1>
-              <h2 className="eyebrow">Convertimos ideas en marcas que conectan.</h2>
-              <p>Combinamos estrategia, diseño y comunicación para ayudar a emprendimientos y empresas a construir marcas relevantes y crecer con intención.</p>
-              <div className="hero-actions">
-                <a className="btn outline" href="#servicios">Conoce nuestros servicios</a>
-                <a className="btn primary" href="#asesoramiento">Quiero asesoramiento</a>
-              </div>
-            </div>
-            <div className="hero-visual" aria-hidden="true">
-              <img src="https://i.pinimg.com/1200x/00/9f/b2/009fb2f8fb2d0c1de658461d3dbc93b8.jpg" alt="" />
-            </div>
-          </div>
-        </section>
-
-        <section id="servicios" className="section">
-          <div className="container">
-            <h3>Servicios</h3>
-            <p className="lead">Soluciones creativas e integradas para tu marca.</p>
-            <div className="cards services-grid">
-              {services.map((service) => <ServiceCard key={service.id} service={service} />)}
-            </div>
-            <div className="service-details" aria-label="Detalle de servicios">
-              {services.map((service) => (
-                <article id={service.id} key={service.id}>
-                  <h4>{service.title}</h4>
-                  <p>{service.detail}</p>
-                </article>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section id="proyectos" className="section alt">
+      <section id="proyectos" className="section alt">
           <div className="container">
             <h3>Proyectos</h3>
             <p className="lead">Una selección de ejercicios conceptuales y propuestas visuales para distintas necesidades de comunicación.</p>
@@ -186,15 +225,29 @@ function App() {
                 ))}
               </div>
             </div>
-            <div className="projects-grid">
+            <div className="projects-grid" aria-live="polite">
               {visibleProjects.map((project) => (
                 <ProjectCard key={project.id} project={project} onOpen={openProject} />
               ))}
+              {visibleProjects.length === 0 && <p className="lead">No hay proyectos en esta categoría todavía.</p>}
             </div>
           </div>
-        </section>
+      </section>
+      {selectedProject && <ProjectModal project={selectedProject} onClose={() => setSelectedProject(null)} />}
+    </>
+  )
+}
 
-        <section id="proceso" className="section">
+function ProcessPage() {
+  const [progressReady, setProgressReady] = useState(false)
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setProgressReady(true), 300)
+    return () => window.clearTimeout(timer)
+  }, [])
+
+  return (
+    <section id="proceso" className="section">
           <div className="container">
             <h3>Nuestro proceso</h3>
             <p className="lead">Cómo trabajamos paso a paso en cada proyecto.</p>
@@ -213,40 +266,32 @@ function App() {
               </div>
             </div>
           </div>
-        </section>
+    </section>
+  )
+}
 
-        <section id="clientes" className="section alt">
-          <div ref={clientCtaRef} className={`container cta-box ${clientCtaReveal}`}>
-            <h3>¿Ya trabajas con GAM+?</h3>
-            <p>En futuros proyectos podrás consultar avances y entregables desde un espacio privado.</p>
-            <a className="btn outline" href="#asesoramiento">Solicitar información</a>
-          </div>
-        </section>
+function ContactPage() {
+  const [clientCtaRef, clientCtaReveal] = useReveal()
+  const [contactRef, contactReveal] = useReveal()
 
-        <section id="asesoramiento" className="section">
+  return (
+    <>
+      <section id="clientes" className="section alt">
+        <div ref={clientCtaRef} className={`container cta-box ${clientCtaReveal}`}>
+          <h3>¿Ya trabajas con GAM+?</h3>
+          <p>En futuros proyectos podrás consultar avances y entregables desde un espacio privado.</p>
+          <Link className="btn outline" to="/contacto#asesoramiento">Solicitar información</Link>
+        </div>
+      </section>
+      <section id="asesoramiento" className="section">
           <div className="container">
             <h3>¿No sabes por dónde empezar?</h3>
             <p className="lead">Cuéntanos sobre tu proyecto y te ayudaremos a encontrar una estrategia.</p>
             <AdviceForm />
           </div>
-        </section>
-
-        <section id="nosotros" className="section alt">
-          <div className="container">
-            <h3>Nosotros</h3>
-            <p>GAM+ es una agencia de publicidad creativa que acompaña a emprendimientos y empresas a convertir sus ideas en comunicación clara, atractiva y estratégica.</p>
-            <ul className="values">
-              <li>Creatividad</li>
-              <li>Estrategia</li>
-              <li>Organización</li>
-              <li>Comunicación</li>
-              <li>Resultados</li>
-            </ul>
-          </div>
-        </section>
-
-        <section id="contacto" className="section">
-          <div ref={contactRef} className={`container contact-grid ${contactReveal}`}>
+      </section>
+      <section id="contacto" className="section">
+        <div ref={contactRef} className={`container contact-grid ${contactReveal}`}>
             <div>
               <h3>Construyamos algo que haga crecer tu marca.</h3>
               <p>Escríbenos para conversar sobre tu próximo proyecto.</p>
@@ -255,12 +300,39 @@ function App() {
               <a className="btn outline" href="https://www.instagram.com/gammas_studios?utm_source=ig_web_button_share_sheet&amp;igsh=ZDNlZDc0MzIxNw==" target="_blank" rel="noopener noreferrer">Instagram</a>
               <a className="btn outline" href="https://www.tiktok.com/@gammas_studios" target="_blank" rel="noopener noreferrer">Tik Tok</a>
             </div>
-          </div>
-        </section>
-      </main>
-      <SiteFooter />
-      {selectedProject && <ProjectModal project={selectedProject} onClose={() => setSelectedProject(null)} />}
+        </div>
+      </section>
     </>
+  )
+}
+
+function AboutPage() {
+  return (
+    <section id="nosotros" className="section alt">
+      <div className="container">
+        <h3>Nosotros</h3>
+        <p>GAM+ es una agencia de publicidad creativa que acompaña a emprendimientos y empresas a convertir sus ideas en comunicación clara, atractiva y estratégica.</p>
+        <ul className="values">
+          <li>Creatividad</li>
+          <li>Estrategia</li>
+          <li>Organización</li>
+          <li>Comunicación</li>
+          <li>Resultados</li>
+        </ul>
+      </div>
+    </section>
+  )
+}
+
+function NotFoundPage() {
+  return (
+    <section className="section">
+      <div className="container">
+        <h3>Página no encontrada</h3>
+        <p className="lead">La dirección que buscas no existe o pudo haber cambiado.</p>
+        <Link className="btn primary" to="/">Volver al inicio</Link>
+      </div>
+    </section>
   )
 }
 
