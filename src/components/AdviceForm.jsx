@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { submitContactMessage } from '../lib/contact.js'
+import { isSupabaseConfigured } from '../lib/supabase.js'
 
 const initialValues = {
   name: '',
@@ -13,6 +15,7 @@ function AdviceForm() {
   const [values, setValues] = useState(initialValues)
   const [errors, setErrors] = useState({})
   const [status, setStatus] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
   const updateField = (event) => {
     const { name, value } = event.target
@@ -20,8 +23,10 @@ function AdviceForm() {
     setErrors((current) => ({ ...current, [name]: false }))
   }
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault()
+    if (submitting) return
+    setStatus('')
     const nextErrors = {
       name: !values.name.trim(),
       business: !values.business.trim(),
@@ -36,9 +41,34 @@ function AdviceForm() {
       return
     }
 
-    setStatus('Solicitud preparada. Conecta este formulario a un servicio de envío para recibirla realmente.')
-    setValues(initialValues)
-    setErrors({})
+    if (!isSupabaseConfigured) {
+      setStatus('No se pudo registrar tu mensaje. Intenta nuevamente más tarde.')
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      const { error } = await submitContactMessage({
+        ...values,
+        name: values.name.trim(),
+        business: values.business.trim(),
+        email: values.email.trim(),
+        type: values.type.trim(),
+        message: values.message.trim(),
+      })
+      if (error) {
+        setStatus('No se pudo registrar tu mensaje. Intenta nuevamente más tarde.')
+        return
+      }
+
+      setStatus('Gracias. Tu mensaje se registró correctamente; nos pondremos en contacto contigo.')
+      setValues(initialValues)
+      setErrors({})
+    } catch {
+      setStatus('No se pudo registrar tu mensaje. Intenta nuevamente más tarde.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -67,7 +97,7 @@ function AdviceForm() {
         <textarea className={errors.message ? 'error' : ''} id="message" name="message" rows="4" required value={values.message} onChange={updateField} />
       </label>
       <div className="form-actions">
-        <button className="btn primary" type="submit">Quiero asesoramiento</button>
+        <button className="btn primary" type="submit" disabled={submitting}>{submitting ? 'Enviando…' : 'Quiero asesoramiento'}</button>
         <p className="form-status" role="status" aria-live="polite">{status}</p>
       </div>
     </form>

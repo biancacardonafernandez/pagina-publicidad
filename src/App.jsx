@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { BrowserRouter, Link, Route, Routes, useLocation } from 'react-router'
 import AdviceForm from './components/AdviceForm.jsx'
+import AdminPage from './components/AdminPage.jsx'
 import ProjectCard from './components/ProjectCard.jsx'
 import ProjectModal from './components/ProjectModal.jsx'
 import ServiceCard from './components/ServiceCard.jsx'
 import SiteFooter from './components/SiteFooter.jsx'
 import SiteHeader from './components/SiteHeader.jsx'
 import useReveal from './hooks/useReveal.js'
+import { getPublishedProjects } from './lib/projects.js'
+import { isSupabaseConfigured, supabase } from './lib/supabase.js'
 import './App.css'
 
 const services = [
@@ -61,17 +64,6 @@ const services = [
   },
 ]
 
-const projects = [
-  { id: 1, title: 'Campaña integral', category: 'publicidad', label: 'Publicidad', description: 'Propuesta integral de campaña.', image: 'https://i.pinimg.com/736x/a6/28/0c/a6280cd98d4304d7d7fe69f61c9dda4c.jpg', alt: 'Propuesta visual de campaña', goal: 'Crear una campaña integral y coherente en múltiples canales.', concept: 'Propuesta visual moderna, atractiva y estratégica.', contribution: 'Diseño conceptual, estrategia visual y producción de piezas.', layout: 'project-large' },
-  { id: 2, title: 'Campaña seasonal', category: 'publicidad', label: 'Publicidad', description: 'Propuesta temática y estacional.', image: 'https://i.pinimg.com/1200x/de/40/2f/de402f1d38028464a895a9c9eaaada9e.jpg', alt: 'Campaña temática seasonal', goal: 'Captar atención con una propuesta temática impactante.', concept: 'Diseño festivo e inmediato con paleta distintiva.', contribution: 'Concepto creativo y adaptación de recursos visuales.' },
-  { id: 3, title: 'Estrategia de contenido', category: 'redes', label: 'Redes sociales', description: 'Contenido estratégico para redes.', image: 'https://i.pinimg.com/736x/cd/a8/06/cda806e2ffdf40916c04f6af5d617c44.jpg', alt: 'Contenido para redes sociales', goal: 'Aumentar engagement y alcance en plataformas digitales.', concept: 'Contenido visual estratégico y calendario editorial.', contribution: 'Creación de piezas, planificación y community management.' },
-  { id: 4, title: 'Sistema de marca', category: 'branding', label: 'Branding', description: 'Identidad visual completa.', image: 'https://i.pinimg.com/736x/a9/8a/f7/a98af7b7b08bf90f1438cdcf7ca3f6cb.jpg', alt: 'Sistema visual de marca', goal: 'Desarrollar una identidad visual sólida y reconocible.', concept: 'Sistema gráfico coherente y versátil.', contribution: 'Desarrollo de manual, guía de marca y recursos visuales.', layout: 'project-wide' },
-  { id: 5, title: 'Colaboración influencers', category: 'redes', label: 'Redes sociales', description: 'Estrategia con personalidades.', image: 'https://i.pinimg.com/1200x/39/42/99/39429970a729a2e74a7c1fe50bdb5164.jpg', alt: 'Estrategia con influencers', goal: 'Posicionar marca mediante alcance de personalidades digitales.', concept: 'Estrategia colaborativa y contenido auténtico.', contribution: 'Coordinación de proyecto, diseño y gestión de colaboraciones.' },
-  { id: 6, title: 'Aplicación de marca', category: 'diseno', label: 'Diseño', description: 'Recursos en múltiples soportes.', image: 'https://i.pinimg.com/736x/f5/e6/9d/f5e69d1dad12d6a366767efed602e1b0.jpg', alt: 'Aplicación de marca en soportes', goal: 'Materializar la identidad en todos los soportes.', concept: 'Aplicación coherente en packaging, digital y físico.', contribution: 'Diseño de aplicaciones y supervisión de producción.' },
-  { id: 7, title: 'Rediseño corporativo', category: 'branding', label: 'Branding', description: 'Actualización de identidad.', image: 'https://i.pinimg.com/736x/62/e0/32/62e03262ea4dee4031c4ed0d00a447cc.jpg', alt: 'Rediseño de identidad corporativa', goal: 'Modernizar y actualizar la identidad existente.', concept: 'Evolución visual manteniendo valores corporativos.', contribution: 'Análisis, concepto rediseñado y guía de transición.' },
-  { id: 8, title: 'Packaging innovador', category: 'diseno', label: 'Diseño', description: 'Solución creativa de empaque.', image: 'https://i.pinimg.com/1200x/a0/3c/89/a03c89075db65d8d5ba481dceb82ecba.jpg', alt: 'Diseño de packaging', goal: 'Crear packaging que destaque en punto de venta.', concept: 'Solución creativa, funcional y sostenible.', contribution: 'Concepto, diseño 3D y especificaciones técnicas.' },
-]
-
 const filters = [
   { label: 'Todos', value: 'all' },
   { label: 'Branding', value: 'branding' },
@@ -88,6 +80,52 @@ const processSteps = [
   ['05', 'Revisión', 'Feedback, ajustes y optimizaciones.'],
   ['06', 'Entrega', 'Entregables finales y reporte de resultados.'],
 ]
+
+async function resolveProjectImage(project) {
+  const relatedFile = project.project_files?.[0]?.clave_almacenamiento
+  let reference = typeof relatedFile === 'string' && relatedFile.trim()
+    ? relatedFile.trim()
+    : typeof project.imagen === 'string' ? project.imagen.trim() : ''
+  if (!reference) return { image: '', failed: true }
+
+  if (/^https?:\/\//i.test(reference)) {
+    try {
+      const url = new URL(reference)
+      const configuredOrigin = new URL(import.meta.env.VITE_SUPABASE_URL).origin
+      const objectRoute = '/storage/v1/object/'
+      if (url.origin === configuredOrigin && url.pathname.includes(objectRoute)) {
+        const objectParts = url.pathname.slice(url.pathname.indexOf(objectRoute) + objectRoute.length).split('/')
+        const routeType = objectParts.shift()
+        const bucket = objectParts.shift()
+        if (['public', 'authenticated', 'sign'].includes(routeType) && bucket === 'project-private-images') {
+          // Ignore signed/public URL tokens for the private bucket; re-check RLS
+          // with the authenticated Storage download request instead.
+          reference = objectParts.map((part) => decodeURIComponent(part)).join('/')
+        } else {
+          if (url.protocol !== 'https:' || project.estado !== 'publicado') {
+            return { image: '', failed: project.estado === 'publicado' }
+          }
+          return { image: url.href, failed: false }
+        }
+      } else {
+        // Public image URLs are valid for published portfolio items. Draft images
+        // must use a path in the private bucket so their URL cannot bypass Storage RLS.
+        if (url.protocol !== 'https:' || project.estado !== 'publicado') {
+          return { image: '', failed: project.estado === 'publicado' }
+        }
+        return { image: url.href, failed: false }
+      }
+    } catch {
+      return { image: '', failed: true }
+    }
+  }
+
+  const { data, error } = await supabase.storage
+    .from('project-private-images')
+    .download(reference)
+  if (error || !data) return { image: '', failed: true }
+  return { image: URL.createObjectURL(data), failed: false, objectUrl: true }
+}
 
 function App() {
   return (
@@ -121,6 +159,7 @@ function AppLayout() {
           <Route path="/proceso" element={<ProcessPage />} />
           <Route path="/nosotros" element={<AboutPage />} />
           <Route path="/contacto" element={<ContactPage />} />
+          <Route path="/admin" element={<AdminPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </main>
@@ -175,6 +214,8 @@ function ServicesPage() {
 }
 
 function ProjectsPage() {
+  const [databaseProjects, setDatabaseProjects] = useState(null)
+  const [projectsError, setProjectsError] = useState('')
   const [activeFilter, setActiveFilter] = useState('all')
   const [selectedProject, setSelectedProject] = useState(null)
   const projectTriggerRef = useRef(null)
@@ -196,14 +237,63 @@ function ProjectsPage() {
     }
   }, [selectedProject])
 
+  useEffect(() => {
+    if (!isSupabaseConfigured) {
+      setDatabaseProjects([])
+      setProjectsError('No se pudo cargar el catálogo. Comprueba la configuración de Supabase.')
+      return undefined
+    }
+    let active = true
+    const objectUrls = []
+    const loadProjects = async () => {
+      setProjectsError('')
+      const { data, error } = await getPublishedProjects()
+      if (error) {
+        if (active) {
+          setDatabaseProjects([])
+          setProjectsError('No se pudieron cargar los proyectos. Intenta nuevamente más tarde.')
+        }
+        return
+      }
+      const imageResults = await Promise.all(data.map(async (project) => {
+        const result = await resolveProjectImage(project)
+        if (result.objectUrl) objectUrls.push(result.image)
+        return { project, ...result }
+      }))
+      if (active) {
+        setDatabaseProjects(imageResults.map(({ project, image }) => ({
+          ...project,
+          image,
+          alt: `Imagen de ${project.titulo}`,
+          title: project.titulo,
+          category: project.categoria,
+          label: filters.find((filter) => filter.value === project.categoria)?.label ?? project.categoria,
+          description: project.descripcion,
+          goal: project.descripcion,
+          concept: project.descripcion,
+          contribution: `Publicado el ${project.creado_en ?? project.fecha}`,
+        })))
+        setProjectsError(imageResults.some((result) => result.failed)
+          ? 'Algunas imágenes no pudieron cargarse. Revisa que las rutas del bucket sean correctas y que los objetos publicados tengan permiso de lectura.'
+          : '')
+      } else objectUrls.forEach((imageUrl) => URL.revokeObjectURL(imageUrl))
+    }
+    loadProjects()
+    return () => {
+      active = false
+      objectUrls.forEach((imageUrl) => URL.revokeObjectURL(imageUrl))
+    }
+  }, [])
+
   const openProject = (project, event) => {
     projectTriggerRef.current = event.currentTarget
     setSelectedProject(project)
   }
 
+  const sourceProjects = databaseProjects ?? []
   const visibleProjects = activeFilter === 'all'
-    ? projects
-    : projects.filter((project) => project.category === activeFilter)
+    ? sourceProjects
+    : sourceProjects.filter((project) => project.category === activeFilter)
   return (
     <>
       <section id="proyectos" className="section alt">
@@ -226,10 +316,12 @@ function ProjectsPage() {
               </div>
             </div>
             <div className="projects-grid" aria-live="polite">
+              {projectsError && <p className="lead" role="alert">{projectsError}</p>}
+              {isSupabaseConfigured && databaseProjects === null && <p className="lead" role="status">Cargando proyectos…</p>}
               {visibleProjects.map((project) => (
                 <ProjectCard key={project.id} project={project} onOpen={openProject} />
               ))}
-              {visibleProjects.length === 0 && <p className="lead">No hay proyectos en esta categoría todavía.</p>}
+              {isSupabaseConfigured && databaseProjects !== null && visibleProjects.length === 0 && <p className="lead">No hay proyectos publicados en esta categoría todavía.</p>}
             </div>
           </div>
       </section>

@@ -27,6 +27,7 @@ npm run build
 - Navegación por rutas con React Router y menú adaptable a móviles.
 - Catálogo de servicios y detalle de cada servicio.
 - Portafolio con filtros y ventana de detalles por proyecto.
+- Administración Supabase en `/admin` para cuentas autorizadas: proyectos, estado y archivos privados (requiere aplicar las migraciones).
 - Formulario de asesoramiento con validación en el cliente. El envío es demostrativo y aún no está conectado a un servicio.
 
 El código fuente de la aplicación se encuentra en `src/`.
